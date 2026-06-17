@@ -1,0 +1,48 @@
+{
+  "collections": [
+    {
+      "name": "users",
+      "description": "User profiles",
+      "schema": {
+        "uid": "string",
+        "email": "string",
+        "createdAt": "timestamp"
+      },
+      "rules": [
+        "allow read, write: if request.auth != null && request.auth.uid == document;"
+      ]
+    },
+    {
+      "name": "carbonInputs",
+      "description": "Stores user carbon footprint",
+      "schema": {
+        "userId": "string",
+        "data": "map",
+        "updatedAt": "timestamp"
+      },
+      "rules": [
+        "allow read: if request.auth != null && request.auth.uid == resource.data.userId;",
+        "allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;",
+        "allow update: if request.auth != null && request.auth.uid == resource.data.userId && request.auth.uid == request.resource.data.userId;",
+        "allow delete: if request.auth != null && request.auth.uid == resource.data.userId;"
+      ]
+    },
+    {
+      "name": "ecoActions",
+      "description": "Stores user tracked eco actions",
+      "schema": {
+        "userId": "string",
+        "name": "string",
+        "co2SavedKg": "number",
+        "date": "string",
+        "createdAt": "timestamp"
+      },
+      "rules": [
+        "allow read: if request.auth != null && request.auth.uid == resource.data.userId;",
+        "allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;",
+        "allow update: if request.auth != null && request.auth.uid == resource.data.userId && request.auth.uid == request.resource.data.userId;",
+        "allow delete: if request.auth != null && request.auth.uid == resource.data.userId;"
+      ]
+    }
+  ]
+}

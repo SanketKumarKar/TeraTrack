@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-natural-50: #F9F9F7;
+  --color-natural-100: #F7F8F2;
+  --color-natural-200: #EBEBE3;
+  --color-natural-300: #D8D2C1;
+  --color-natural-400: #B3B39D;
+  --color-natural-500: #8DA07B;
+  --color-natural-600: #5E7A55;
+  --color-natural-700: #4A6741;
+  --color-natural-800: #2D342B;
+  --color-natural-900: #1A1F18;
+}
