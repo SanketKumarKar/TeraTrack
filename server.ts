@@ -62,7 +62,6 @@ async function startServer() {
         ...history,
         { role: "user", parts: [{ text: message }]}
       ];
-      console.log("Sending contents:", JSON.stringify(contents, null, 2));
       
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",

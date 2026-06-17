@@ -1,4 +1,4 @@
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { cn } from "../App";
@@ -61,12 +61,12 @@ export default function CalculatorPage() {
     fetchExisting();
   }, [user]);
 
-  const handleChange = (category: keyof FormState, field: string, value: any) => {
+  const handleChange = useCallback((category: keyof FormState, field: string, value: string | number) => {
     setFormData((prev) => ({
       ...prev,
       [category]: { ...prev[category], [field]: value },
     }));
-  };
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

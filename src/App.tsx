@@ -1,12 +1,14 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
-import CalculatorPage from "./pages/CalculatorPage";
-import DashboardPage from "./pages/DashboardPage";
-import ActionTrackerPage from "./pages/ActionTrackerPage";
-import AwarenessPage from "./pages/AwarenessPage";
-import { Leaf, Activity, LayoutDashboard, Settings } from "lucide-react";
+import { Leaf, Activity, LayoutDashboard, Settings, Loader2 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { AuthProvider, useAuth, signInWithGoogle, logout } from "./lib/firebase/auth";
+
+const CalculatorPage = lazy(() => import("./pages/CalculatorPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const ActionTrackerPage = lazy(() => import("./pages/ActionTrackerPage"));
+const AwarenessPage = lazy(() => import("./pages/AwarenessPage"));
 
 /** Utility for Tailwind class merging */
 export function cn(...inputs: ClassValue[]) {
@@ -62,7 +64,7 @@ function Navigation() {
                     </div>
                   </div>
                   {user.photoURL ? (
-                    <img src={user.photoURL} alt="Avatar" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+                    <img src={user.photoURL} alt="Avatar" width="32" height="32" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="w-8 h-8 bg-natural-300 rounded-full"></div>
                   )}
@@ -93,12 +95,14 @@ export default function App() {
         <div className="min-h-screen bg-natural-100 text-natural-800 font-sans selection:bg-natural-300">
           <Navigation />
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <Routes>
-              <Route path="/" element={<CalculatorPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/tracker" element={<ActionTrackerPage />} />
-              <Route path="/awareness" element={<AwarenessPage />} />
-            </Routes>
+            <Suspense fallback={<div className="flex items-center justify-center p-24"><Loader2 className="w-8 h-8 text-natural-600 animate-spin" /></div>}>
+              <Routes>
+                <Route path="/" element={<CalculatorPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/tracker" element={<ActionTrackerPage />} />
+                <Route path="/awareness" element={<AwarenessPage />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </BrowserRouter>

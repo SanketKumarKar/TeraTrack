@@ -39,10 +39,10 @@ export default function AwarenessPage() {
       }
       
       setChatHistory(prev => [...prev, { role: "model", parts: [{ text: data.response || "Sorry, I could not understand that." }] }]);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Chat error:", error);
       // Fallback message, we won't add this error to true history which gets sent back to API
-      setChatHistory(prev => [...prev, { role: "model", parts: [{ text: `_Error: ${error.message}_` }] }]);
+      setChatHistory(prev => [...prev, { role: "model", parts: [{ text: `_Error: ${error instanceof Error ? error.message : "Unknown error"}_` }] }]);
     } finally {
       setIsChatLoading(false);
     }
@@ -161,6 +161,7 @@ export default function AwarenessPage() {
                 value={chatMessage}
                 onChange={(e) => setChatMessage(e.target.value)}
                 placeholder="Ask about sustainability..."
+                aria-label="Chat message"
                 disabled={isChatLoading}
                 className="w-full pl-6 pr-14 py-4 rounded-2xl bg-natural-100 border-none outline-none focus:ring-2 focus:ring-natural-300 transition-shadow disabled:opacity-50"
               />

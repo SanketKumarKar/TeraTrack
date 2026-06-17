@@ -50,7 +50,7 @@ export const getEcoActions = async (userId: string): Promise<EcoAction[]> => {
   );
   
   const querySnapshot = await getDocs(q);
-  const actions: EcoAction[] = [];
+  const actions: (EcoAction & { createdAt: number })[] = [];
   querySnapshot.forEach((doc) => {
     const data = doc.data();
     actions.push({
@@ -62,7 +62,7 @@ export const getEcoActions = async (userId: string): Promise<EcoAction[]> => {
     } as EcoAction & { createdAt: number });
   });
   
-  return actions.sort((a: any, b: any) => b.createdAt - a.createdAt);
+  return actions.sort((a, b) => b.createdAt - a.createdAt);
 };
 
 export const deleteEcoAction = async (actionId: string) => {
