@@ -1,32 +1,12 @@
-import { FormEvent, useState, useEffect, useCallback } from "react";
+import { FormEvent, useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
-import { cn } from "../App";
+import { cn } from "../lib/utils";
+import { CalculationSchema } from "../lib/schemas";
 import { Leaf, Car, Zap, ShoppingBag } from "lucide-react";
 import { useAuth } from "../lib/firebase/auth";
 import { saveCarbonInput, getCarbonInput } from "../lib/firebase/db";
 import type { UserInputData } from "../lib/types";
-
-// Matches our server validation schema exactly to prevent mismatches
-const CalculationSchema = z.object({
-  transport: z.object({
-    carType: z.enum(["gas", "hybrid", "ev", "none"]),
-    kmPerWeek: z.number().min(0, "Must be positive").max(5000, "Too high for weekly usage"),
-    flightsPerYear: z.number().min(0).max(100),
-  }),
-  homeEnergy: z.object({
-    electricityKwhPerMonth: z.number().min(0).max(10000),
-    gasUsage: z.number().min(0).max(10000),
-    renewablePercentage: z.number().min(0).max(100),
-  }),
-  diet: z.object({
-    meatFrequency: z.enum(["daily", "weekly", "rarely", "vegan"]),
-  }),
-  shoppingWaste: z.object({
-    onlineOrdersPerMonth: z.number().min(0).max(500),
-    recyclingHabits: z.enum(["always", "sometimes", "never"]),
-  }),
-});
 
 type FormState = z.infer<typeof CalculationSchema>;
 
@@ -36,6 +16,7 @@ export default function CalculatorPage() {
   const [loading, setLoading] = useState(false);
   const [initialFetchDone, setInitialFetchDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const [formData, setFormData] = useState<FormState>({
     transport: { carType: "gas", kmPerWeek: 100, flightsPerYear: 1 },
@@ -45,20 +26,22 @@ export default function CalculatorPage() {
   });
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchExisting() {
       if (!user) return;
       try {
         const data = await getCarbonInput(user.uid);
-        if (data) {
+        if (data && !cancelled) {
           setFormData(data as FormState);
         }
       } catch (e) {
-        console.error("Failed to load existing data", e);
+        if (!cancelled) console.error("Failed to load existing data", e);
       } finally {
-        setInitialFetchDone(true);
+        if (!cancelled) setInitialFetchDone(true);
       }
     }
     fetchExisting();
+    return () => { cancelled = true; };
   }, [user]);
 
   const handleChange = useCallback((category: keyof FormState, field: string, value: string | number) => {
@@ -68,12 +51,18 @@ export default function CalculatorPage() {
     }));
   }, []);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     if (!user) {
       setError("You must be signed in to save.");
       return;
     }
+
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(null);
 
@@ -81,23 +70,25 @@ export default function CalculatorPage() {
       // Client validation
       CalculationSchema.parse(formData);
 
-      // The API call is just demonstrating full-stack behavior and validation.
+      // The API call demonstrates full-stack validation behaviour.
       const response = await fetch("/api/calculate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
         throw new Error("Failed to process calculation on the server.");
       }
-      
-      // Store input to Firebase instead of localStorage
+
+      // Store input to Firebase
       await saveCarbonInput(user.uid, formData);
-      
+
       // Navigate to Dashboard
       navigate("/dashboard");
     } catch (err) {
+      if ((err as { name?: string }).name === "AbortError") return;
       if (err instanceof z.ZodError) {
         setError("Please check your inputs: " + err.issues[0].message);
       } else {
@@ -106,7 +97,7 @@ export default function CalculatorPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, formData, navigate]);
 
   return (
     <div className="max-w-3xl mx-auto bg-white rounded-[32px] shadow-sm border border-natural-200 overflow-hidden">

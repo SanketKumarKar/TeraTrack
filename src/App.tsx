@@ -1,19 +1,16 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { Leaf, Activity, LayoutDashboard, Settings, Loader2 } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
 import { AuthProvider, useAuth, signInWithGoogle, logout } from "./lib/firebase/auth";
+import { cn } from "./lib/utils";
+
+// Re-export so legacy imports from "../App" continue to work
+export { cn };
 
 const CalculatorPage = lazy(() => import("./pages/CalculatorPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const ActionTrackerPage = lazy(() => import("./pages/ActionTrackerPage"));
 const AwarenessPage = lazy(() => import("./pages/AwarenessPage"));
-
-/** Utility for Tailwind class merging */
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 function Navigation() {
   const location = useLocation();

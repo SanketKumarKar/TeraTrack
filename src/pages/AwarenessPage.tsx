@@ -1,36 +1,68 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, ChevronUp, Globe, Wind, Droplets, Send, Bot, User, Loader2 } from "lucide-react";
 import Markdown from "react-markdown";
+
+/** Maximum number of turns (user + model pairs) to keep in memory. */
+const MAX_HISTORY_TURNS = 20;
+
+interface ChatMessage {
+  role: "user" | "model";
+  parts: { text: string }[];
+  isError?: boolean;
+}
+
+/** Static educational tips — defined outside the component to avoid re-creation per render. */
+const TIPS = [
+  { title: "Switch to a renewable energy provider", content: "Switching to wind or solar energy can reduce your household emissions by up to 1.5 tonnes of CO2 per year." },
+  { title: "Eat plant-based meals more often", content: "Replacing meat with plant-based alternatives just two days a week can save around 0.4 tonnes of CO2 annually." },
+  { title: "Walk, cycle, or use public transit", content: "Leaving the car at home for short trips cuts down on direct tailpipe emissions significantly." },
+  { title: "Reduce food waste", content: "Plan meals and freeze leftovers. Food waste in landfills produces methane, a potent greenhouse gas." },
+  { title: "Improve home insulation", content: "Draft-proofing your home minimizes the energy needed to heat or cool it, saving money and emissions." },
+  { title: "Buy locally sourced food", content: "Purchasing local produce reduces the transportation emissions associated with getting food to your plate." },
+  { title: "Switch to LEDs", content: "LED bulbs use up to 85% less energy than traditional incandescent bulbs and last much longer." },
+  { title: "Wash clothes on cold", content: "Heating water accounts for about 90% of the energy used by a washing machine. Wash on cold to save energy." },
+  { title: "Reduce air travel", content: "A single round-trip long-haul flight can produce more CO2 than an average person in some countries produces in a year." },
+  { title: "Consume less, buy second-hand", content: "Manufacturing new products consumes energy and resources. Extending the life of items reduces this hidden footprint." },
+];
+
 
 export default function AwarenessPage() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
   const [chatMessage, setChatMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState<{ role: string, parts: { text: string }[] }[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const toggleAccordion = (index: number) => {
-    setOpenIndex(openIndex === index ? null : index);
-  };
+  const toggleAccordion = useCallback((index: number) => {
+    setOpenIndex((prev) => (prev === index ? null : index));
+  }, []);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatMessage.trim()) return;
 
-    const newMsg = { role: "user", parts: [{ text: chatMessage }] };
-    // Filter out previous error messages (which we formatted with _Error: ..._)
-    const cleanHistory = chatHistory.filter((msg) => !msg.parts[0].text.startsWith("_Error:"));
-    const currentHistory = [...cleanHistory];
-    
-    setChatHistory([...chatHistory, newMsg]);
+    const userMsg: ChatMessage = { role: "user", parts: [{ text: chatMessage }] };
+    // Only send non-error messages to the API; cap history depth to avoid token overuse
+    const cleanHistory = chatHistory
+      .filter((msg) => !msg.isError)
+      .slice(-MAX_HISTORY_TURNS);
+
+    setChatHistory((prev) => [...prev, userMsg]);
     setChatMessage("");
     setIsChatLoading(true);
+
+    // Abort any previous in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: newMsg.parts[0].text, history: currentHistory })
+        body: JSON.stringify({ message: userMsg.parts[0].text, history: cleanHistory }),
+        signal: controller.signal,
       });
       const data = await res.json();
       
@@ -38,32 +70,29 @@ export default function AwarenessPage() {
          throw new Error(data.error || "Failed to get response");
       }
       
-      setChatHistory(prev => [...prev, { role: "model", parts: [{ text: data.response || "Sorry, I could not understand that." }] }]);
+      const modelMsg: ChatMessage = {
+        role: "model",
+        parts: [{ text: data.response || "Sorry, I could not understand that." }],
+      };
+      setChatHistory((prev) => [...prev, modelMsg]);
     } catch (error) {
+      if ((error as { name?: string }).name === "AbortError") return;
       console.error("Chat error:", error);
-      // Fallback message, we won't add this error to true history which gets sent back to API
-      setChatHistory(prev => [...prev, { role: "model", parts: [{ text: `_Error: ${error instanceof Error ? error.message : "Unknown error"}_` }] }]);
+      const errMsg: ChatMessage = {
+        role: "model",
+        parts: [{ text: `_Error: ${error instanceof Error ? error.message : "Unknown error"}_` }],
+        isError: true,
+      };
+      setChatHistory((prev) => [...prev, errMsg]);
     } finally {
       setIsChatLoading(false);
     }
-  };
+  }, [chatMessage, chatHistory]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory]);
 
-  const tips = [
-    { title: "Switch to a renewable energy provider", content: "Switching to wind or solar energy can reduce your household emissions by up to 1.5 tonnes of CO2 per year." },
-    { title: "Eat plant-based meals more often", content: "Replacing meat with plant-based alternatives just two days a week can save around 0.4 tonnes of CO2 annually." },
-    { title: "Walk, cycle, or use public transit", content: "Leaving the car at home for short trips cuts down on direct tailpipe emissions significantly." },
-    { title: "Reduce food waste", content: "Plan meals and freeze leftovers. Food waste in landfills produces methane, a potent greenhouse gas." },
-    { title: "Improve home insulation", content: "Draft-proofing your home minimizes the energy needed to heat or cool it, saving money and emissions." },
-    { title: "Buy locally sourced food", content: "Purchasing local produce reduces the transportation emissions associated with getting food to your plate." },
-    { title: "Switch to LEDs", content: "LED bulbs use up to 85% less energy than traditional incandescent bulbs and last much longer." },
-    { title: "Wash clothes on cold", content: "Heating water accounts for about 90% of the energy used by a washing machine. Wash on cold to save energy." },
-    { title: "Reduce air travel", content: "A single round-trip long-haul flight can produce more CO2 than an average person in some countries produces in a year." },
-    { title: "Consume less, buy second-hand", content: "Manufacturing new products consumes energy and resources. Extending the life of items reduces this hidden footprint." }
-  ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-12 pb-12">
@@ -181,7 +210,7 @@ export default function AwarenessPage() {
       <section aria-labelledby="top-10">
         <h2 id="top-10" className="text-3xl font-bold text-natural-800 mb-8 text-center mt-8">Top 10 Easiest Ways to Reduce</h2>
         <div className="bg-white rounded-[32px] shadow-sm border border-natural-200 divide-y divide-natural-100 overflow-hidden">
-          {tips.map((tip, index) => (
+          {TIPS.map((tip, index) => (
             <div key={index} className="px-8">
               <button
                 className="w-full py-6 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-inset focus:ring-natural-700"

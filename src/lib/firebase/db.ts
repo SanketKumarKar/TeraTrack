@@ -46,25 +46,34 @@ export const getEcoActions = async (userId: string): Promise<EcoAction[]> => {
   const actionsRef = collection(db, 'ecoActions');
   const q = query(
     actionsRef, 
-    where("userId", "==", userId)
+    where("userId", "==", userId),
+    orderBy("createdAt", "desc")
   );
   
   const querySnapshot = await getDocs(q);
-  const actions: (EcoAction & { createdAt: number })[] = [];
-  querySnapshot.forEach((doc) => {
-    const data = doc.data();
+  const actions: EcoAction[] = [];
+  querySnapshot.forEach((document) => {
+    const data = document.data();
     actions.push({
-      id: doc.id,
+      id: document.id,
       name: data.name,
       co2SavedKg: data.co2SavedKg,
       date: data.date,
-      createdAt: data.createdAt?.toMillis() || Date.now()
-    } as EcoAction & { createdAt: number });
+    } as EcoAction);
   });
   
-  return actions.sort((a, b) => b.createdAt - a.createdAt);
+  return actions;
 };
 
-export const deleteEcoAction = async (actionId: string) => {
-  await deleteDoc(doc(db, 'ecoActions', actionId));
+/**
+ * Deletes an eco action. Requires the userId for ownership verification at
+ * the application layer (Firestore rules enforce this at the DB layer too).
+ */
+export const deleteEcoAction = async (actionId: string, userId: string): Promise<void> => {
+  const docRef = doc(db, 'ecoActions', actionId);
+  const snap = await getDoc(docRef);
+  if (!snap.exists() || snap.data().userId !== userId) {
+    throw new Error('Action not found or permission denied.');
+  }
+  await deleteDoc(docRef);
 };

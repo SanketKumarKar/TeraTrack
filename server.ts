@@ -5,29 +5,11 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { GoogleGenAI } from "@google/genai";
+import { CalculationSchema, ChatRequestSchema } from "./src/lib/schemas.js";
+import { calculateTotalFootprint } from "./src/lib/calculator.js";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// --- Schema Definitions ---
-const CalculationSchema = z.object({
-  transport: z.object({
-    carType: z.enum(["gas", "hybrid", "ev", "none"]),
-    kmPerWeek: z.number().min(0).max(5000),
-    flightsPerYear: z.number().min(0).max(100),
-  }),
-  homeEnergy: z.object({
-    electricityKwhPerMonth: z.number().min(0).max(10000),
-    gasUsage: z.number().min(0).max(10000),
-    renewablePercentage: z.number().min(0).max(100),
-  }),
-  diet: z.object({
-    meatFrequency: z.enum(["daily", "weekly", "rarely", "vegan"]),
-  }),
-  shoppingWaste: z.object({
-    onlineOrdersPerMonth: z.number().min(0).max(500),
-    recyclingHabits: z.enum(["always", "sometimes", "never"]),
-  }),
-});
 
 async function startServer() {
   const app = express();
@@ -55,7 +37,13 @@ async function startServer() {
   // API Routes
   app.post("/api/chat", async (req, res) => {
     try {
-      const { message, history } = req.body;
+      // Validate request body to prevent prompt injection and token abuse
+      const parsed = ChatRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid request: " + parsed.error.issues[0].message });
+      }
+      const { message, history } = parsed.data;
+
       const systemInstruction = "You are a helpful, expert AI assistant specialized in carbon footprint reduction, sustainability, and climate change awareness. Provide concise, actionable advice in a friendly, encouraging, and natural tone. Align with the TerraTrack project theme.";
       
       const contents = [
@@ -64,7 +52,7 @@ async function startServer() {
       ];
       
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3-flash-preview",
         contents,
         config: {
           systemInstruction,
@@ -82,26 +70,8 @@ async function startServer() {
     try {
       const parsedData = CalculationSchema.parse(req.body);
       
-      // Calculate carbon footprint (dummy logic for server-side validation / store)
-      // The actual math might be shared, here we just do a quick computation for the score.
-      let score = 0;
-      
-      // Very basic scoring logic for the backend just to satisfy storing a score
-      // We will have a more detailed shared library.
-      if (parsedData.transport.carType === "gas") score += 2;
-      score += (parsedData.transport.kmPerWeek * 0.0002) * 52;
-      score += parsedData.transport.flightsPerYear * 1.5;
-      
-      score += (parsedData.homeEnergy.electricityKwhPerMonth * 12 * 0.0005) * ((100 - parsedData.homeEnergy.renewablePercentage) / 100);
-      score += parsedData.homeEnergy.gasUsage * 12 * 0.002;
-      
-      if (parsedData.diet.meatFrequency === "daily") score += 3.3;
-      if (parsedData.diet.meatFrequency === "weekly") score += 1.7;
-      if (parsedData.diet.meatFrequency === "rarely") score += 1.0;
-      if (parsedData.diet.meatFrequency === "vegan") score += 0.5;
-      
-      score += parsedData.shoppingWaste.onlineOrdersPerMonth * 12 * 0.05;
-      if (parsedData.shoppingWaste.recyclingHabits === "never") score += 0.5;
+      // Use the shared calculator for consistent results with the frontend
+      const { score } = calculateTotalFootprint(parsedData);
 
       res.json({ success: true, score });
     } catch (error) {

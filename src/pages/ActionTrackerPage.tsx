@@ -1,4 +1,4 @@
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, Trophy } from "lucide-react";
 import type { EcoAction } from "../lib/types";
 import { useAuth } from "../lib/firebase/auth";
@@ -12,6 +12,7 @@ export default function ActionTrackerPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchActions() {
       if (!user) {
         setLoading(false);
@@ -19,45 +20,50 @@ export default function ActionTrackerPage() {
       }
       try {
         const fetched = await getEcoActions(user.uid);
-        setActions(fetched);
+        if (!cancelled) setActions(fetched);
       } catch (e) {
-        console.error("Failed to load actions", e);
+        if (!cancelled) console.error("Failed to load actions", e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     fetchActions();
+    return () => { cancelled = true; };
   }, [user]);
 
-  const handleAddAction = async (e: FormEvent) => {
+  const handleAddAction = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newCo2Saved || !user) return;
 
+    const co2Value = parseFloat(newCo2Saved);
+    if (isNaN(co2Value) || co2Value <= 0) return;
+
     try {
       const actionData = {
-        name: newName.trim(),
-        co2SavedKg: parseFloat(newCo2Saved),
+        name: newName.trim().slice(0, 200), // enforce max length
+        co2SavedKg: co2Value,
         date: new Date().toISOString(),
       };
       
       const newId = await addEcoAction(user.uid, actionData);
       
-      setActions([{ id: newId, ...actionData }, ...actions]);
+      setActions((prev) => [{ id: newId, ...actionData }, ...prev]);
       setNewName("");
       setNewCo2Saved("");
     } catch(e) {
       console.error("Failed to add action", e);
     }
-  };
+  }, [newName, newCo2Saved, user]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
+    if (!user) return;
     try {
-      await deleteEcoAction(id);
-      setActions(actions.filter((a) => a.id !== id));
+      await deleteEcoAction(id, user.uid);
+      setActions((prev) => prev.filter((a) => a.id !== id));
     } catch(e) {
       console.error("Failed to delete action", e);
     }
-  };
+  }, [user]);
 
   const totalSaved = actions.reduce((sum, action) => sum + action.co2SavedKg, 0);
 
@@ -94,6 +100,7 @@ export default function ActionTrackerPage() {
                   type="text"
                   id="actionName"
                   required
+                  maxLength={200}
                   placeholder="e.g., Cycled to work"
                   className="w-full rounded-md border-natural-200 border px-3 py-2 text-sm focus:border-natural-700 focus:ring-natural-700 focus:outline-none"
                   value={newName}

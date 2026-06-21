@@ -9,8 +9,10 @@ import type { UserInputData, CategoryBreakdown, CalculationResult } from "./type
  * @returns The transport carbon footprint in tonnes.
  */
 export const calculateTransport = (transport: UserInputData["transport"]): number => {
-  const carEmissions = transport.kmPerWeek * EMISSION_FACTORS.transport.car[transport.carType] * WEEKS_PER_YEAR;
-  const flightEmissions = transport.flightsPerYear * EMISSION_FACTORS.transport.flight;
+  const kmPerWeek = Math.max(0, transport.kmPerWeek);
+  const flightsPerYear = Math.max(0, transport.flightsPerYear);
+  const carEmissions = kmPerWeek * EMISSION_FACTORS.transport.car[transport.carType] * WEEKS_PER_YEAR;
+  const flightEmissions = flightsPerYear * EMISSION_FACTORS.transport.flight;
   return carEmissions + flightEmissions;
 };
 
@@ -22,10 +24,14 @@ export const calculateTransport = (transport: UserInputData["transport"]): numbe
  * @returns The home energy carbon footprint in tonnes.
  */
 export const calculateHomeEnergy = (homeEnergy: UserInputData["homeEnergy"]): number => {
-  const electricityEmissions = homeEnergy.electricityKwhPerMonth * MONTHS_PER_YEAR * EMISSION_FACTORS.homeEnergy.electricity;
-  const gridDependency = (100 - homeEnergy.renewablePercentage) / 100;
+  const electricityKwh = Math.max(0, homeEnergy.electricityKwhPerMonth);
+  const gasUsage = Math.max(0, homeEnergy.gasUsage);
+  const renewablePct = Math.min(100, Math.max(0, homeEnergy.renewablePercentage));
+
+  const electricityEmissions = electricityKwh * MONTHS_PER_YEAR * EMISSION_FACTORS.homeEnergy.electricity;
+  const gridDependency = (100 - renewablePct) / 100;
   
-  const gasEmissions = homeEnergy.gasUsage * MONTHS_PER_YEAR * EMISSION_FACTORS.homeEnergy.gas;
+  const gasEmissions = gasUsage * MONTHS_PER_YEAR * EMISSION_FACTORS.homeEnergy.gas;
   
   return (electricityEmissions * gridDependency) + gasEmissions;
 };
@@ -49,7 +55,8 @@ export const calculateDiet = (diet: UserInputData["diet"]): number => {
  * @returns The shopping and waste carbon footprint in tonnes.
  */
 export const calculateShoppingWaste = (shopping: UserInputData["shoppingWaste"]): number => {
-  const shoppingEmissions = shopping.onlineOrdersPerMonth * MONTHS_PER_YEAR * EMISSION_FACTORS.shoppingWaste.onlineOrder;
+  const ordersPerMonth = Math.max(0, shopping.onlineOrdersPerMonth);
+  const shoppingEmissions = ordersPerMonth * MONTHS_PER_YEAR * EMISSION_FACTORS.shoppingWaste.onlineOrder;
   const recyclingEmissions = EMISSION_FACTORS.shoppingWaste.recyclingPenalty[shopping.recyclingHabits];
   return shoppingEmissions + recyclingEmissions;
 };

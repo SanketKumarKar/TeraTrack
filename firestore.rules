@@ -6,13 +6,24 @@ service cloud.firestore {
     }
     match /carbonInputs/{document} {
       allow read, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId && request.auth.uid == request.resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.keys().hasAll(['userId', 'data', 'updatedAt']);
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.userId
+        && request.auth.uid == request.resource.data.userId;
     }
     match /ecoActions/{document} {
       allow read, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow update: if request.auth != null && request.auth.uid == resource.data.userId && request.auth.uid == request.resource.data.userId;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.co2SavedKg is number
+        && request.resource.data.co2SavedKg > 0;
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.userId
+        && request.auth.uid == request.resource.data.userId;
     }
   }
 }

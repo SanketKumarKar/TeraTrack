@@ -38,15 +38,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
         setLoading(false);
       } else {
-        signInAnonymously(auth).catch((error) => {
-          console.error("Error signing in anonymously:", error);
-          setLoading(false);
-        });
+        signInAnonymously(auth)
+          .then((credential) => {
+            setUser(credential.user);
+          })
+          .catch((error) => {
+            console.error("Error signing in anonymously:", error);
+          })
+          .finally(() => {
+            setLoading(false);
+          });
       }
     });
 
